@@ -8,8 +8,9 @@ and conventions live in each project's `CLAUDE.md`.
 ## Attribution & License
 
 This repository contains a mix of skills adapted from [addyosmani/agent-skills]
-(used under the [MIT License][agent-skills license]) and skills written from scratch. Each skill's
-frontmatter records its origin and whether it has been modified:
+(used under the [MIT License][agent-skills-license]) and skills written from
+scratch. Each skill's frontmatter records its origin and whether it has been
+modified:
 
 ```yaml
 ---
@@ -18,9 +19,9 @@ description: ...
 x-provenance:
   origin: addyosmani/agent-skills
   upstream_path: skills/spec-driven-development/SKILL.md
-  upstream_commit: abc123
+  upstream_commit: 19e49a094d79540e635b107cb3490926ddeac7a3
   status: modified
-  last_synced: 2026-04-30
+  last_synced: 2026-05-01
 ---
 ```
 
@@ -32,4 +33,4 @@ This repository is licensed under the MIT License. See [LICENSE](./LICENSE) for
 the full text.
 
 [addyosmani/agent-skills]: https://github.com/addyosmani/agent-skills
-[agent-skills license]: https://github.com/addyosmani/agent-skills/blob/main/LICENSE
+[agent-skills-license]: https://github.com/addyosmani/agent-skills/blob/main/LICENSE
