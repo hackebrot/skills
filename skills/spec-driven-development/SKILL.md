@@ -5,7 +5,7 @@ x-provenance:
   origin: addyosmani/agent-skills
   upstream_path: skills/spec-driven-development/SKILL.md
   upstream_commit: 19e49a094d79540e635b107cb3490926ddeac7a3
-  status: verbatim
+  status: modified
   last_synced: 2026-05-01
 ---
 
@@ -45,10 +45,10 @@ Start with a high-level vision. Ask the human clarifying questions until require
 
 ```
 ASSUMPTIONS I'M MAKING:
-1. This is a web application (not native mobile)
-2. Authentication uses session-based cookies (not JWT)
-3. The database is PostgreSQL (based on existing Prisma schema)
-4. We're targeting modern browsers only (no IE11)
+1. This is a backend service (not a CLI or library)
+2. Transport is HTTP/JSON (not gRPC)
+3. Persistence is PostgreSQL (based on the existing schema in db/migrations)
+4. Deployment target is Kubernetes (based on the helm/ directory)
 → Correct me now or I'll proceed with these.
 ```
 
@@ -60,21 +60,22 @@ Don't silently fill in ambiguous requirements. The spec's entire purpose is to s
 
 2. **Commands** — Full executable commands with flags, not just tool names.
    ```
-   Build: npm run build
-   Test: npm test -- --coverage
-   Lint: npm run lint --fix
-   Dev: npm run dev
+   Build:    go build ./...
+   Test:     go test -cover ./...
+   TestRace: go test -race ./...
+   Lint:     golangci-lint run
+   Run:      go run ./cmd/<command>
    ```
 
 3. **Project Structure** — Where source code lives, where tests go, where docs belong.
    ```
-   src/           → Application source code
-   src/components → React components
-   src/lib        → Shared utilities
-   tests/         → Unit and integration tests
-   e2e/           → End-to-end tests
-   docs/          → Documentation
+   cmd/         → Entry points (one subdir per command)
+   internal/    → Private application code, not importable from outside
+   pkg/         → Public library code intended for external use (if any)
+   testdata/    → Test fixtures (special-cased by the Go toolchain)
+   docs/        → Documentation
    ```
+   Tests live alongside the code they test — `foo_test.go` next to `foo.go`, in the same package.
 
 4. **Code Style** — One real code snippet showing your style beats three paragraphs describing it. Include naming conventions, formatting rules, and examples of good output.
 
@@ -123,12 +124,12 @@ Don't silently fill in ambiguous requirements. The spec's entire purpose is to s
 **Reframe instructions as success criteria.** When receiving vague requirements, translate them into concrete conditions:
 
 ```
-REQUIREMENT: "Make the dashboard faster"
+REQUIREMENT: "Make the API faster"
 
 REFRAMED SUCCESS CRITERIA:
-- Dashboard LCP < 2.5s on 4G connection
-- Initial data load completes in < 500ms
-- No layout shift during load (CLS < 0.1)
+- p99 latency < 200ms at 1000 RPS sustained
+- p50 latency < 50ms under normal load
+- Error rate < 0.1% over a 24h window
 → Are these the right targets?
 ```
 
