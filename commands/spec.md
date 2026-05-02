@@ -4,11 +4,11 @@ x-provenance:
   origin: addyosmani/agent-skills
   upstream_path: .claude/commands/spec.md
   upstream_commit: 19e49a094d79540e635b107cb3490926ddeac7a3
-  status: verbatim
+  status: modified
   last_synced: 2026-05-01
 ---
 
-Invoke the agent-skills:spec-driven-development skill.
+Invoke the spec-driven-development skill.
 
 Begin by understanding what the user wants to build. Ask clarifying questions about:
 1. The objective and target users
