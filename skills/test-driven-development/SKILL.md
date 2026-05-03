@@ -40,35 +40,48 @@ Write a failing test before writing the code that makes it pass. For bug fixes, 
 
 Write the test first. It must fail. A test that passes immediately proves nothing.
 
-```typescript
-// RED: This test fails because createTask doesn't exist yet
-describe('TaskService', () => {
-  it('creates a task with title and default status', async () => {
-    const task = await taskService.createTask({ title: 'Buy groceries' });
+```go
+// RED: This test fails because CreateTask doesn't exist yet
+func TestTaskService_CreateTask(t *testing.T) {
+    svc := NewTaskService(...)
 
-    expect(task.id).toBeDefined();
-    expect(task.title).toBe('Buy groceries');
-    expect(task.status).toBe('pending');
-    expect(task.createdAt).toBeInstanceOf(Date);
-  });
-});
+    task, err := svc.CreateTask(ctx, CreateTaskInput{Title: "Buy groceries"})
+    if err != nil {
+        t.Fatalf("CreateTask returned error: %v", err)
+    }
+
+    if task.ID == "" {
+        t.Errorf("task.ID is empty")
+    }
+    if task.Title != "Buy groceries" {
+        t.Errorf("task.Title = %q, want %q", task.Title, "Buy groceries")
+    }
+    if task.Status != StatusPending {
+        t.Errorf("task.Status = %v, want %v", task.Status, StatusPending)
+    }
+    if task.CreatedAt.IsZero() {
+        t.Errorf("task.CreatedAt is zero")
+    }
+}
 ```
 
 ### Step 2: GREEN — Make It Pass
 
 Write the minimum code to make the test pass. Don't over-engineer:
 
-```typescript
+```go
 // GREEN: Minimal implementation
-export async function createTask(input: { title: string }): Promise<Task> {
-  const task = {
-    id: generateId(),
-    title: input.title,
-    status: 'pending' as const,
-    createdAt: new Date(),
-  };
-  await db.tasks.insert(task);
-  return task;
+func (s *TaskService) CreateTask(ctx context.Context, in CreateTaskInput) (*Task, error) {
+    task := &Task{
+        ID:        generateID(),
+        Title:     in.Title,
+        Status:    StatusPending,
+        CreatedAt: time.Now(),
+    }
+    if err := s.db.InsertTask(ctx, task); err != nil {
+        return nil, fmt.Errorf("insert task: %w", err)
+    }
+    return task, nil
 }
 ```
 
@@ -108,24 +121,38 @@ Bug report arrives
 
 **Example:**
 
-```typescript
-// Bug: "Completing a task doesn't update the completedAt timestamp"
+```go
+// Bug: "Completing a task doesn't update the CompletedAt timestamp"
 
 // Step 1: Write the reproduction test (it should FAIL)
-it('sets completedAt when task is completed', async () => {
-  const task = await taskService.createTask({ title: 'Test' });
-  const completed = await taskService.completeTask(task.id);
+func TestTaskService_CompleteTask_SetsCompletedAt(t *testing.T) {
+    svc := NewTaskService(...)
+    ctx := context.Background()
 
-  expect(completed.status).toBe('completed');
-  expect(completed.completedAt).toBeInstanceOf(Date);  // This fails → bug confirmed
-});
+    task, err := svc.CreateTask(ctx, CreateTaskInput{Title: "Test"})
+    if err != nil {
+        t.Fatalf("CreateTask returned error: %v", err)
+    }
+
+    completed, err := svc.CompleteTask(ctx, task.ID)
+    if err != nil {
+        t.Fatalf("CompleteTask returned error: %v", err)
+    }
+
+    if completed.Status != StatusCompleted {
+        t.Errorf("Status = %v, want %v", completed.Status, StatusCompleted)
+    }
+    if completed.CompletedAt.IsZero() {
+        t.Errorf("CompletedAt is zero (bug confirmed)")
+    }
+}
 
 // Step 2: Fix the bug
-export async function completeTask(id: string): Promise<Task> {
-  return db.tasks.update(id, {
-    status: 'completed',
-    completedAt: new Date(),  // This was missing
-  });
+func (s *TaskService) CompleteTask(ctx context.Context, id string) (*Task, error) {
+    return s.db.UpdateTask(ctx, id, TaskUpdate{
+        Status:      StatusCompleted,
+        CompletedAt: time.Now(), // This was missing
+    })
 }
 
 // Step 3: Test passes → bug fixed, regression guarded
@@ -138,7 +165,7 @@ Invest testing effort according to the pyramid — most tests should be small an
 ```
           ╱╲
          ╱  ╲         E2E Tests (~5%)
-        ╱    ╲        Full user flows, real browser
+        ╱    ╲        Full user flows, real environment
        ╱──────╲
       ╱        ╲      Integration Tests (~15%)
      ╱          ╲     Component interactions, API boundaries
@@ -162,6 +189,8 @@ Beyond the pyramid levels, classify tests by what resources they consume:
 
 Small tests should make up the vast majority of your suite. They're fast, reliable, and easy to debug when they fail.
 
+**Mark medium and large tests with build tags so they don't run by default.** A common pattern is `//go:build integration` at the top of integration test files, with `go test -tags=integration ./...` as the explicit invocation. This keeps the small-test suite fast enough to run frequently during development.
+
 ### Decision Guide
 
 ```
@@ -181,42 +210,58 @@ Is it a critical user flow that must work end-to-end?
 
 Assert on the *outcome* of an operation, not on which methods were called internally. Tests that verify method call sequences break when you refactor, even if the behavior is unchanged.
 
-```typescript
+```go
 // Good: Tests what the function does (state-based)
-it('returns tasks sorted by creation date, newest first', async () => {
-  const tasks = await listTasks({ sortBy: 'createdAt', sortOrder: 'desc' });
-  expect(tasks[0].createdAt.getTime())
-    .toBeGreaterThan(tasks[1].createdAt.getTime());
-});
+func TestListTasks_SortedByCreationDateDescending(t *testing.T) {
+    tasks, err := listTasks(ctx, ListOptions{SortBy: "createdAt", SortOrder: "desc"})
+    if err != nil {
+        t.Fatalf("listTasks returned error: %v", err)
+    }
+    if !tasks[0].CreatedAt.After(tasks[1].CreatedAt) {
+        t.Errorf("expected tasks sorted newest first, got %v then %v",
+            tasks[0].CreatedAt, tasks[1].CreatedAt)
+    }
+}
 
 // Bad: Tests how the function works internally (interaction-based)
-it('calls db.query with ORDER BY created_at DESC', async () => {
-  await listTasks({ sortBy: 'createdAt', sortOrder: 'desc' });
-  expect(db.query).toHaveBeenCalledWith(
-    expect.stringContaining('ORDER BY created_at DESC')
-  );
-});
+func TestListTasks_CallsDBQueryWithOrderByClause(t *testing.T) {
+    fakeDB := &fakeDB{}
+    listTasksWithDB(ctx, fakeDB, ListOptions{SortBy: "createdAt", SortOrder: "desc"})
+
+    if !strings.Contains(fakeDB.LastQuery, "ORDER BY created_at DESC") {
+        t.Errorf("expected query to contain ORDER BY clause, got %q", fakeDB.LastQuery)
+    }
+}
 ```
 
 ### DAMP Over DRY in Tests
 
 In production code, DRY (Don't Repeat Yourself) is usually right. In tests, **DAMP (Descriptive And Meaningful Phrases)** is better. A test should read like a specification — each test should tell a complete story without requiring the reader to trace through shared helpers.
 
-```typescript
+```go
 // DAMP: Each test is self-contained and readable
-it('rejects tasks with empty titles', () => {
-  const input = { title: '', assignee: 'user-1' };
-  expect(() => createTask(input)).toThrow('Title is required');
-});
+func TestCreateTask_RejectsEmptyTitle(t *testing.T) {
+    _, err := CreateTask(CreateTaskInput{Title: "", Assignee: "user-1"})
+    if err == nil {
+        t.Fatal("expected error for empty title, got nil")
+    }
+    if !errors.Is(err, ErrTitleRequired) {
+        t.Errorf("err = %v, want %v", err, ErrTitleRequired)
+    }
+}
 
-it('trims whitespace from titles', () => {
-  const input = { title: '  Buy groceries  ', assignee: 'user-1' };
-  const task = createTask(input);
-  expect(task.title).toBe('Buy groceries');
-});
+func TestCreateTask_TrimsWhitespaceFromTitle(t *testing.T) {
+    task, err := CreateTask(CreateTaskInput{Title: "  Buy groceries  ", Assignee: "user-1"})
+    if err != nil {
+        t.Fatalf("CreateTask returned error: %v", err)
+    }
+    if task.Title != "Buy groceries" {
+        t.Errorf("task.Title = %q, want %q", task.Title, "Buy groceries")
+    }
+}
 
 // Over-DRY: Shared setup obscures what each test actually verifies
-// (Don't do this just to avoid repeating the input shape)
+// (Don't extract the input shape into a helper just to avoid repetition)
 ```
 
 Duplication in tests is acceptable when it makes each test independently understandable.
@@ -248,56 +293,113 @@ with the real system.
 
 ### Use the Arrange-Act-Assert Pattern
 
-```typescript
-it('marks overdue tasks when deadline has passed', () => {
-  // Arrange: Set up the test scenario
-  const task = createTask({
-    title: 'Test',
-    deadline: new Date('2025-01-01'),
-  });
+```go
+func TestCheckOverdue_MarksOverdueWhenDeadlinePassed(t *testing.T) {
+    // Arrange: Set up the test scenario
+    deadline := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+    now := time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)
+    task := Task{Title: "Test", Deadline: deadline}
 
-  // Act: Perform the action being tested
-  const result = checkOverdue(task, new Date('2025-01-02'));
+    // Act: Perform the action being tested
+    result := CheckOverdue(task, now)
 
-  // Assert: Verify the outcome
-  expect(result.isOverdue).toBe(true);
-});
+    // Assert: Verify the outcome
+    if !result.IsOverdue {
+        t.Errorf("IsOverdue = false, want true")
+    }
+}
 ```
 
 ### One Assertion Per Concept
 
-```typescript
-// Good: Each test verifies one behavior
-it('rejects empty titles', () => { ... });
-it('trims whitespace from titles', () => { ... });
-it('enforces maximum title length', () => { ... });
+```go
+// Good: Each case verifies one behavior
+func TestCreateTask_TitleValidation(t *testing.T) {
+    tests := []struct {
+        name    string
+        title   string
+        want    string
+        wantErr error
+    }{
+        {
+            name:    "rejects_empty_title",
+            title:   "",
+            wantErr: ErrTitleRequired,
+        },
+        {
+            name:  "trims_whitespace",
+            title: "  hello  ",
+            want:  "hello",
+        },
+        {
+            name:    "rejects_too_long_title",
+            title:   strings.Repeat("a", 256),
+            wantErr: ErrTitleTooLong,
+        },
+    }
 
-// Bad: Everything in one test
-it('validates titles correctly', () => {
-  expect(() => createTask({ title: '' })).toThrow();
-  expect(createTask({ title: '  hello  ' }).title).toBe('hello');
-  expect(() => createTask({ title: 'a'.repeat(256) })).toThrow();
-});
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            task, err := CreateTask(CreateTaskInput{Title: tt.title})
+
+            if tt.wantErr != nil {
+                if !errors.Is(err, tt.wantErr) {
+                    t.Errorf("err = %v, want %v", err, tt.wantErr)
+                }
+                return
+            }
+            if err != nil {
+                t.Fatalf("CreateTask returned error: %v", err)
+            }
+            if task.Title != tt.want {
+                t.Errorf("task.Title = %q, want %q", task.Title, tt.want)
+            }
+        })
+    }
+}
+
+// Bad: Everything in one test, multiple concepts entangled
+func TestCreateTask_ValidatesTitlesCorrectly(t *testing.T) {
+    if _, err := CreateTask(CreateTaskInput{Title: ""}); err == nil {
+        t.Errorf("expected error for empty title")
+    }
+    if task, _ := CreateTask(CreateTaskInput{Title: "  hello  "}); task.Title != "hello" {
+        t.Errorf("expected trimmed title")
+    }
+    if _, err := CreateTask(CreateTaskInput{Title: strings.Repeat("a", 256)}); err == nil {
+        t.Errorf("expected error for too-long title")
+    }
+}
 ```
 
 ### Name Tests Descriptively
 
-```typescript
+```go
 // Good: Reads like a specification
-describe('TaskService.completeTask', () => {
-  it('sets status to completed and records timestamp', ...);
-  it('throws NotFoundError for non-existent task', ...);
-  it('is idempotent — completing an already-completed task is a no-op', ...);
-  it('sends notification to task assignee', ...);
-});
+func TestTaskService_CompleteTask(t *testing.T) {
+    t.Run("sets_status_to_completed_and_records_timestamp", func(t *testing.T) {
+        // ...
+    })
+    t.Run("returns_not_found_error_for_nonexistent_task", func(t *testing.T) {
+        // ...
+    })
+    t.Run("is_idempotent_completing_already_completed_task_is_noop", func(t *testing.T) {
+        // ...
+    })
+    t.Run("sends_notification_to_task_assignee", func(t *testing.T) {
+        // ...
+    })
+}
 
 // Bad: Vague names
-describe('TaskService', () => {
-  it('works', ...);
-  it('handles errors', ...);
-  it('test 3', ...);
-});
+func TestTaskService(t *testing.T) {
+    t.Run("works", func(t *testing.T) { /* ... */ })
+    t.Run("handles_errors", func(t *testing.T) { /* ... */ })
+    t.Run("test_3", func(t *testing.T) { /* ... */ })
+}
 ```
+
+Subtest names are also addressable via `go test -run TestName/subtest_name`, so descriptive names pay off when investigating failures.
 
 ## Test Anti-Patterns to Avoid
 
@@ -352,8 +454,9 @@ This separation ensures the test is written without knowledge of the fix, making
 After completing any implementation:
 
 - [ ] Every new behavior has a corresponding test
-- [ ] All tests pass: `npm test`
+- [ ] All tests pass: `go test ./...`
 - [ ] Bug fixes include a reproduction test that failed before the fix
 - [ ] Test names describe the behavior being verified
 - [ ] No tests were skipped or disabled
 - [ ] Coverage hasn't decreased (if tracked)
+
