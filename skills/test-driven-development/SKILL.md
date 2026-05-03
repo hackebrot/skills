@@ -233,7 +233,18 @@ Preference order (most to least preferred):
 4. Mock (interaction)   → Verifies method calls — use sparingly
 ```
 
-**Use mocks only when:** the real implementation is too slow, non-deterministic, or has side effects you can't control (external APIs, email sending). Over-mocking creates tests that pass while production breaks.
+**Use mocks only when:** the real implementation is too slow,
+non-deterministic, or has side effects you can't control (external APIs, email
+sending). Over-mocking creates tests that pass while production breaks.
+
+**For external dependencies, prefer ephemeral real instances over mocks.**
+Tests that need a database, message queue, or third-party service should spin
+up a real instance per test run rather than mock the dependency. Tools like
+testcontainers (available for Go and Python) and docker-compose make this
+practical. Real dependencies catch bugs that mocks miss: schema mismatches,
+connection-pooling edge cases, SQL dialect quirks, serialization issues. The
+cost is slower tests; the benefit is tests that actually verify the contract
+with the real system.
 
 ### Use the Arrange-Act-Assert Pattern
 
