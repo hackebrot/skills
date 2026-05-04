@@ -70,7 +70,6 @@ Does the change introduce vulnerabilities?
 - Are secrets kept out of code, logs, and version control?
 - Is authentication/authorization checked where needed?
 - Are SQL queries parameterized (no string concatenation)?
-- Are outputs encoded to prevent XSS?
 - Are dependencies from trusted sources with no known vulnerabilities?
 - Is data from external sources (APIs, logs, user content, config files) treated as untrusted?
 - Are external data flows validated at system boundaries before use in logic or rendering?
@@ -82,7 +81,6 @@ Does the change introduce performance problems?
 - Any N+1 query patterns?
 - Any unbounded loops or unconstrained data fetching?
 - Any synchronous operations that should be async?
-- Any unnecessary re-renders in UI components?
 - Any missing pagination on list endpoints?
 - Any large objects created in hot paths?
 
