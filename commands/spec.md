@@ -4,7 +4,7 @@ x-provenance:
   origin: addyosmani/agent-skills
   upstream_path: .claude/commands/spec.md
   upstream_commit: 19e49a094d79540e635b107cb3490926ddeac7a3
-  status: modified
+  status: verbatim
   last_synced: 2026-05-01
 ---
 
