@@ -5,7 +5,7 @@ x-provenance:
   origin: addyosmani/agent-skills
   upstream_path: skills/code-review-and-quality/SKILL.md
   upstream_commit: 19e49a094d79540e635b107cb3490926ddeac7a3
-  status: verbatim
+  status: modified
   last_synced: 2026-05-01
 ---
 
@@ -64,7 +64,7 @@ Does the change fit the system's design?
 
 ### 4. Security
 
-For detailed security guidance, see `security-and-hardening`. Does the change introduce vulnerabilities?
+Does the change introduce vulnerabilities?
 
 - Is user input validated and sanitized?
 - Are secrets kept out of code, logs, and version control?
@@ -77,7 +77,7 @@ For detailed security guidance, see `security-and-hardening`. Does the change in
 
 ### 5. Performance
 
-For detailed profiling and optimization, see `performance-optimization`. Does the change introduce performance problems?
+Does the change introduce performance problems?
 
 - Any N+1 query patterns?
 - Any unbounded loops or unconstrained data fetching?
@@ -316,10 +316,6 @@ Part of code review is dependency review:
 - [ ] **Approve** — Ready to merge
 - [ ] **Request changes** — Issues must be addressed
 ```
-## See Also
-
-- For detailed security review guidance, see `references/security-checklist.md`
-- For performance review checks, see `references/performance-checklist.md`
 
 ## Common Rationalizations
 
