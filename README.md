@@ -26,8 +26,12 @@ x-provenance:
 ```
 
 `origin` always points to the repo where the content first appeared. `status`
-is one of `verbatim`, `modified`, or `authored`. For authored skills, only
-`origin` and `status` are needed; the upstream-related fields don't apply.
+is one of `verbatim`, `modified`, or `authored`. A file is `verbatim` if its
+meaning is unchanged from upstream, even when a mechanical adaptation has been
+applied (such as stripping a plugin namespace prefix that doesn't apply here).
+A file is `modified` when its content has substantively changed. For authored
+files, only `origin` and `status` are needed; the upstream-related fields
+don't apply.
 
 This repository is licensed under the MIT License. See [LICENSE](./LICENSE) for
 the full text.
