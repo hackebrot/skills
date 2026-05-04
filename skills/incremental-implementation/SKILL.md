@@ -54,29 +54,29 @@ For each slice:
 Build one complete path through the stack:
 
 ```
-Slice 1: Create a task (DB + API + basic UI)
-    → Tests pass, user can create a task via the UI
+Slice 1: Create a task (migration + repository + service + endpoint + tests)
+    → Tests pass, POST /tasks creates a task
 
-Slice 2: List tasks (query + API + UI)
-    → Tests pass, user can see their tasks
+Slice 2: List tasks (query + service + endpoint + tests)
+    → Tests pass, GET /tasks returns the list
 
-Slice 3: Edit a task (update + API + UI)
-    → Tests pass, user can modify tasks
+Slice 3: Edit a task (update + service + endpoint + tests)
+    → Tests pass, PATCH /tasks/{id} updates a task
 
-Slice 4: Delete a task (delete + API + UI + confirmation)
-    → Tests pass, full CRUD complete
+Slice 4: Delete a task (delete + service + endpoint + tests)
+    → Tests pass, DELETE /tasks/{id} removes a task; full CRUD complete
 ```
 
 Each slice delivers working end-to-end functionality.
 
 ### Contract-First Slicing
 
-When backend and frontend need to develop in parallel:
+When backend and a separate consumer (frontend, mobile client, partner service) need to develop in parallel:
 
 ```
 Slice 0: Define the API contract (types, interfaces, OpenAPI spec)
 Slice 1a: Implement backend against the contract + API tests
-Slice 1b: Implement frontend against mock data matching the contract
+Slice 1b: Consumer implements against mock data matching the contract
 Slice 2: Integrate and test end-to-end
 ```
 
@@ -133,7 +133,7 @@ If you notice something worth improving outside your task scope, note it — don
 
 ```
 NOTICED BUT NOT TOUCHING:
-- src/utils/format.ts has an unused import (unrelated to this task)
+- internal/format/time.go has an unused import (unrelated to this task)
 - The auth middleware could use better error messages (separate task)
 → Want me to create tasks for these?
 ```
@@ -142,7 +142,7 @@ NOTICED BUT NOT TOUCHING:
 
 Each increment changes one logical thing. Don't mix concerns:
 
-**Bad:** One commit that adds a new component, refactors an existing one, and updates the build config.
+**Bad:** One commit that adds a new endpoint, refactors an existing service, and updates the build config.
 
 **Good:** Three separate commits — one for each change.
 
@@ -154,12 +154,21 @@ After each increment, the project must build and existing tests must pass. Don't
 
 If a feature isn't ready for users but you need to merge increments:
 
-```typescript
-// Feature flag for work-in-progress
-const ENABLE_TASK_SHARING = process.env.FEATURE_TASK_SHARING === 'true';
+```go
+type Flags struct {
+    TaskSharing bool
+}
 
-if (ENABLE_TASK_SHARING) {
-  // New sharing UI
+// FeatureFlags returns the current feature flag state.
+func FeatureFlags() Flags {
+    return Flags{
+        TaskSharing: os.Getenv("FEATURE_TASK_SHARING") == "true",
+    }
+}
+
+// ... at a call site:
+if FeatureFlags().TaskSharing {
+    // new sharing logic
 }
 ```
 
@@ -169,11 +178,23 @@ This lets you merge small increments to the main branch without exposing incompl
 
 New code should default to safe, conservative behavior:
 
-```typescript
-// Safe: disabled by default, opt-in
-export function createTask(data: TaskInput, options?: { notify?: boolean }) {
-  const shouldNotify = options?.notify ?? false;
-  // ...
+```go
+type CreateTaskOptions struct {
+    Notify bool
+}
+
+// NewCreateTaskOptions returns options with safe defaults.
+func NewCreateTaskOptions() CreateTaskOptions {
+    return CreateTaskOptions{
+        Notify: false,
+    }
+}
+
+func CreateTask(data TaskInput, opts CreateTaskOptions) (*Task, error) {
+    if opts.Notify {
+        // send notification
+    }
+    // ...
 }
 ```
 
@@ -193,10 +214,10 @@ When directing an agent to implement incrementally:
 ```
 "Let's implement Task 3 from the plan.
 
-Start with just the database schema change and the API endpoint.
-Don't touch the UI yet — we'll do that in the next increment.
+Start with just the database schema change and the repository layer.
+Don't touch the API endpoint yet — we'll do that in the next increment.
 
-After implementing, run `npm test` and `npm run build` to verify
+After implementing, run `go test ./...` and `go build ./...` to verify
 nothing is broken."
 ```
 
@@ -207,10 +228,9 @@ Be explicit about what's in scope and what's NOT in scope for each increment.
 After each increment, verify:
 
 - [ ] The change does one thing and does it completely
-- [ ] All existing tests still pass (`npm test`)
-- [ ] The build succeeds (`npm run build`)
-- [ ] Type checking passes (`npx tsc --noEmit`)
-- [ ] Linting passes (`npm run lint`)
+- [ ] All existing tests still pass (`go test ./...`)
+- [ ] The build succeeds (`go build ./...`)
+- [ ] Linting passes (`golangci-lint run`)
 - [ ] The new functionality works as expected
 - [ ] The change is committed with a descriptive message
 
