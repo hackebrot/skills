@@ -220,9 +220,9 @@ Don't leave dead code lying around — it confuses future readers and agents. Bu
 
 ```
 DEAD CODE IDENTIFIED:
-- formatLegacyDate() in src/utils/date.ts — replaced by formatDate()
-- OldTaskCard component in src/components/ — replaced by TaskCard
-- LEGACY_API_URL constant in src/config.ts — no remaining references
+- formatLegacyTime() in internal/timeutil/time.go — replaced by FormatTime()
+- OldUserStore type in internal/storage/users.go — replaced by UserStore
+- LegacyAPIURL constant in internal/config/config.go — no remaining references
 → Safe to remove these?
 ```
 
