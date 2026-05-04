@@ -262,9 +262,9 @@ Part of code review is dependency review:
 
 **Before adding any dependency:**
 1. Does the existing stack solve this? (Often it does.)
-2. How large is the dependency? (Check bundle impact.)
+2. How large is the dependency? (Consider binary size, install footprint, compile time, and transitive dependencies.)
 3. Is it actively maintained? (Check last commit, open issues.)
-4. Does it have known vulnerabilities? (`npm audit`)
+4. Does it have known vulnerabilities? (`govulncheck` for Go, `pip-audit` for Python, `npm audit` for JS/TS)
 5. What's the license? (Must be compatible with the project.)
 
 **Rule:** Prefer standard library and existing utilities over new dependencies. Every dependency is a liability.
