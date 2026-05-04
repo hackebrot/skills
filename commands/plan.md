@@ -8,7 +8,7 @@ x-provenance:
   last_synced: 2026-05-01
 ---
 
-Invoke the agent-skills:planning-and-task-breakdown skill.
+Invoke the planning-and-task-breakdown skill.
 
 Read the existing spec (SPEC.md or equivalent) and the relevant codebase sections. Then:
 
