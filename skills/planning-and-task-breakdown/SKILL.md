@@ -5,7 +5,7 @@ x-provenance:
   origin: addyosmani/agent-skills
   upstream_path: skills/planning-and-task-breakdown/SKILL.md
   upstream_commit: 19e49a094d79540e635b107cb3490926ddeac7a3
-  status: verbatim
+  status: modified
   last_synced: 2026-05-01
 ---
 
@@ -43,41 +43,41 @@ Before writing any code, operate in read-only mode:
 Map what depends on what:
 
 ```
-Database schema
+Database schema / migrations
     │
-    ├── API models/types
+    ├── Domain models
     │       │
-    │       ├── API endpoints
+    │       ├── Data access (repository, sqlc queries, or direct DB calls)
     │       │       │
-    │       │       └── Frontend API client
+    │       │       └── Service layer
     │       │               │
-    │       │               └── UI components
+    │       │               └── HTTP handlers
     │       │
     │       └── Validation logic
     │
-    └── Seed data / migrations
+    └── Seed data
 ```
 
 Implementation order follows the dependency graph bottom-up: build foundations first.
 
 ### Step 3: Slice Vertically
 
-Instead of building all the database, then all the API, then all the UI — build one complete feature path at a time:
+Instead of building all the database, then all the repositories, then all the handlers — build one complete feature path at a time:
 
 **Bad (horizontal slicing):**
 ```
 Task 1: Build entire database schema
-Task 2: Build all API endpoints
-Task 3: Build all UI components
-Task 4: Connect everything
+Task 2: Build all repositories
+Task 3: Build all service-layer logic
+Task 4: Build all HTTP handlers
 ```
 
 **Good (vertical slicing):**
 ```
-Task 1: User can create an account (schema + API + UI for registration)
-Task 2: User can log in (auth schema + API + UI for login)
-Task 3: User can create a task (task schema + API + UI for creation)
-Task 4: User can view task list (query + API + UI for list view)
+Task 1: User can register (migration + repository + service + endpoint + tests)
+Task 2: User can log in (auth migration + JWT issuance + middleware + endpoint + tests)
+Task 3: User can create a task (task migration + repository + service + endpoint + tests)
+Task 4: User can list tasks (query + service + endpoint + tests)
 ```
 
 Each vertical slice delivers working, testable functionality.
@@ -96,15 +96,15 @@ Each task follows this structure:
 - [ ] [Specific, testable condition]
 
 **Verification:**
-- [ ] Tests pass: `npm test -- --grep "feature-name"`
-- [ ] Build succeeds: `npm run build`
+- [ ] Tests pass: `go test -run TestFeatureName ./...`
+- [ ] Build succeeds: `go build ./...`
 - [ ] Manual check: [description of what to verify]
 
 **Dependencies:** [Task numbers this depends on, or "None"]
 
 **Files likely touched:**
-- `src/path/to/file.ts`
-- `tests/path/to/test.ts`
+- `internal/path/to/file.go`
+- `internal/path/to/file_test.go`
 
 **Estimated scope:** [Small: 1-2 files | Medium: 3-5 files | Large: 5+ files]
 ```
