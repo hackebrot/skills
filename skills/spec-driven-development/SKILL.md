@@ -167,9 +167,9 @@ Break the plan into discrete, implementable tasks:
 
 ### Phase 4: Implement
 
-Execute tasks one at a time, ideally writing tests before implementation and
-shipping in small, verifiable increments. Load only the relevant spec sections
-and source files at each step rather than flooding the context with the entire
+Execute tasks one at a time following the `incremental-implementation` and
+`test-driven-development` skills. Load only the relevant spec sections and
+source files at each step rather than flooding the context with the entire
 spec.
 
 ## Keeping the Spec Alive
