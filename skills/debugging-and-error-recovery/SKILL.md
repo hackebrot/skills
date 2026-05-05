@@ -5,7 +5,7 @@ x-provenance:
   origin: addyosmani/agent-skills
   upstream_path: skills/debugging-and-error-recovery/SKILL.md
   upstream_commit: 19e49a094d79540e635b107cb3490926ddeac7a3
-  status: verbatim
+  status: modified
   last_synced: 2026-05-01
 ---
 
@@ -21,7 +21,7 @@ Systematic debugging with structured triage. When something breaks, stop adding 
 - The build breaks
 - Runtime behavior doesn't match expectations
 - A bug report arrives
-- An error appears in logs or console
+- An error appears in logs
 - Something worked before and stopped working
 
 ## The Stop-the-Line Rule
@@ -62,10 +62,10 @@ Can you reproduce the failure?
 Cannot reproduce on demand:
 ├── Timing-dependent?
 │   ├── Add timestamps to logs around the suspected area
-│   ├── Try with artificial delays (setTimeout, sleep) to widen race windows
+│   ├── Try with artificial delays (time.Sleep) to widen race windows
 │   └── Run under load or concurrency to increase collision probability
 ├── Environment-dependent?
-│   ├── Compare Node/browser versions, OS, environment variables
+│   ├── Compare Go versions, OS, environment variables
 │   ├── Check for differences in data (empty vs populated database)
 │   └── Try reproducing in CI where the environment is clean
 ├── State-dependent?
@@ -81,13 +81,16 @@ Cannot reproduce on demand:
 For test failures:
 ```bash
 # Run the specific failing test
-npm test -- --grep "test name"
+go test -run TestName ./...
 
 # Run with verbose output
-npm test -- --verbose
+go test -v ./...
 
-# Run in isolation (rules out test pollution)
-npm test -- --testPathPattern="specific-file" --runInBand
+# Run with the race detector (for concurrent code)
+go test -race ./...
+
+# Run a single package in isolation
+go test ./path/to/package
 ```
 
 ### Step 2: Localize
@@ -96,12 +99,12 @@ Narrow down WHERE the failure happens:
 
 ```
 Which layer is failing?
-├── UI/Frontend     → Check console, DOM, network tab
-├── API/Backend     → Check server logs, request/response
-├── Database        → Check queries, schema, data integrity
-├── Build tooling   → Check config, dependencies, environment
+├── Transport      → Check HTTP/gRPC handlers, request/response
+├── Service        → Check business logic, error wrapping
+├── Database       → Check queries, schema, data integrity
+├── Build tooling  → Check go.mod, dependencies, environment
 ├── External service → Check connectivity, API changes, rate limits
-└── Test itself     → Check if the test is correct (false negative)
+└── Test itself    → Check if the test is correct (false negative)
 ```
 
 **Use bisection for regression bugs:**
@@ -111,7 +114,7 @@ git bisect start
 git bisect bad                    # Current commit is broken
 git bisect good <known-good-sha> # This commit worked
 # Git will checkout midpoint commits; run your test at each
-git bisect run npm test -- --grep "failing test"
+git bisect run go test -run TestName ./...
 ```
 
 ### Step 3: Reduce
@@ -129,14 +132,14 @@ A minimal reproduction makes the root cause obvious and prevents fixing symptoms
 Fix the underlying issue, not the symptom:
 
 ```
-Symptom: "The user list shows duplicate entries"
+Symptom: "The user list returns duplicate entries"
 
 Symptom fix (bad):
-  → Deduplicate in the UI component: [...new Set(users)]
+  → Deduplicate in the handler before returning the response
 
 Root cause fix (good):
-  → The API endpoint has a JOIN that produces duplicates
-  → Fix the query, add a DISTINCT, or fix the data model
+  → The repository query has a JOIN that produces duplicates
+  → Fix the query, add DISTINCT, or fix the data model
 ```
 
 Ask: "Why does this happen?" until you reach the actual cause, not just where it manifests.
@@ -145,14 +148,28 @@ Ask: "Why does this happen?" until you reach the actual cause, not just where it
 
 Write a test that catches this specific failure:
 
-```typescript
+```go
 // The bug: task titles with special characters broke the search
-it('finds tasks with special characters in title', async () => {
-  await createTask({ title: 'Fix "quotes" & <brackets>' });
-  const results = await searchTasks('quotes');
-  expect(results).toHaveLength(1);
-  expect(results[0].title).toBe('Fix "quotes" & <brackets>');
-});
+func TestSearchTasks_FindsTasksWithSpecialCharacters(t *testing.T) {
+    svc := NewTaskService(...)
+    ctx := context.Background()
+
+    _, err := svc.CreateTask(ctx, CreateTaskInput{Title: `Fix "quotes" & <brackets>`})
+    if err != nil {
+        t.Fatalf("CreateTask returned error: %v", err)
+    }
+
+    results, err := svc.SearchTasks(ctx, "quotes")
+    if err != nil {
+        t.Fatalf("SearchTasks returned error: %v", err)
+    }
+    if len(results) != 1 {
+        t.Fatalf("got %d results, want 1", len(results))
+    }
+    if results[0].Title != `Fix "quotes" & <brackets>` {
+        t.Errorf("Title = %q, want %q", results[0].Title, `Fix "quotes" & <brackets>`)
+    }
+}
 ```
 
 This test will prevent the same bug from recurring. It should fail without the fix and pass with it.
@@ -163,16 +180,19 @@ After fixing, verify the complete scenario:
 
 ```bash
 # Run the specific test
-npm test -- --grep "specific test"
+go test -run TestName ./...
 
 # Run the full test suite (check for regressions)
-npm test
+go test ./...
 
-# Build the project (check for type/compilation errors)
-npm run build
+# Run with race detector (for concurrent code)
+go test -race ./...
 
-# Manual spot check if applicable
-npm run dev  # Verify in browser
+# Build the project
+go build ./...
+
+# Lint
+golangci-lint run
 ```
 
 ## Error-Specific Patterns
@@ -197,52 +217,64 @@ Test fails after code change:
 Build fails:
 ├── Type error → Read the error, check the types at the cited location
 ├── Import error → Check the module exists, exports match, paths are correct
-├── Config error → Check build config files for syntax/schema issues
-├── Dependency error → Check package.json, run npm install
-└── Environment error → Check Node version, OS compatibility
+├── Config error → Check go.mod and build config files for syntax/schema issues
+├── Dependency error → Run `go mod tidy` and `go mod download`
+└── Environment error → Check Go version, OS compatibility
 ```
 
 ### Runtime Error Triage
 
 ```
 Runtime error:
-├── TypeError: Cannot read property 'x' of undefined
-│   └── Something is null/undefined that shouldn't be
+├── nil pointer dereference (panic)
+│   └── Something is nil that shouldn't be
 │       → Check data flow: where does this value come from?
-├── Network error / CORS
-│   └── Check URLs, headers, server CORS config
-├── Render error / White screen
-│   └── Check error boundary, console, component tree
+│       → If the value comes from a function returning `(T, error)`, check the error before using the value
+├── index out of range (panic)
+│   └── Slice or array access beyond bounds
+│       → Check loop bounds; verify `i < len(slice)` before indexing
+├── goroutine deadlock or leak
+│   └── A goroutine is stuck or never exits
+│       → For deadlock: check that every channel send has a matching receive, and every lock has a matching unlock
+│       → For leaks: check that goroutines have a way to exit (context cancellation, close signals)
+├── send on closed channel (panic)
+│   └── A goroutine sent to a channel after another closed it
+│       → The sender, not the receiver, should close the channel
+│       → Use context cancellation or sync.WaitGroup to coordinate shutdown
 └── Unexpected behavior (no error)
     └── Add logging at key points, verify data at each step
+        → For concurrent code, run with `go test -race ./...` to detect data races
 ```
 
 ## Safe Fallback Patterns
 
 When under time pressure, use safe fallbacks:
 
-```typescript
+```go
 // Safe default + warning (instead of crashing)
-function getConfig(key: string): string {
-  const value = process.env[key];
-  if (!value) {
-    console.warn(`Missing config: ${key}, using default`);
-    return DEFAULTS[key] ?? '';
-  }
-  return value;
+func GetConfig(key string) string {
+    value := os.Getenv(key)
+    if value == "" {
+        slog.Warn("missing config, using default", "key", key)
+        if def, ok := defaults[key]; ok {
+            return def
+        }
+        return ""
+    }
+    return value
 }
 
-// Graceful degradation (instead of broken feature)
-function renderChart(data: ChartData[]) {
-  if (data.length === 0) {
-    return <EmptyState message="No data available for this period" />;
-  }
-  try {
-    return <Chart data={data} />;
-  } catch (error) {
-    console.error('Chart render failed:', error);
-    return <ErrorState message="Unable to display chart" />;
-  }
+// Graceful degradation (instead of broken handler)
+func handleListTasks(w http.ResponseWriter, r *http.Request) {
+    tasks, err := svc.ListTasks(r.Context())
+    if err != nil {
+        slog.Error("ListTasks failed", "err", err)
+        // Return an empty list rather than 500ing the entire endpoint
+        // when downstream services are degraded.
+        writeJSON(w, http.StatusOK, []Task{})
+        return
+    }
+    writeJSON(w, http.StatusOK, tasks)
 }
 ```
 
@@ -261,9 +293,9 @@ Add logging only when it helps. Remove it when done.
 - It contains sensitive data (always remove these)
 
 **Permanent instrumentation (keep):**
-- Error boundaries with error reporting
-- API error logging with request context
-- Performance metrics at key user flows
+- Error logging with request context
+- API error responses with structured fields
+- Performance metrics at key service boundaries
 
 ## Common Rationalizations
 
